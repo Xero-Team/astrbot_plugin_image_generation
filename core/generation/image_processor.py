@@ -13,10 +13,9 @@ from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
 import aiohttp
-from PIL import Image, UnidentifiedImageError
-
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
+from PIL import Image, UnidentifiedImageError
 
 from ..shared.logging import (
     log_prefix,
@@ -465,7 +464,7 @@ class ImageProcessor:
         try:
             mime = self._detect_mime_type(img_bytes)
             extension = GENERATED_IMAGE_EXTENSIONS.get(mime, ".png")
-            file_name = f"gen_{task_id}_{int(time.time())}_{hashlib.md5(img_bytes).hexdigest()[:6]}{extension}"
+            file_name = f"gen_{task_id}_{int(time.time())}_{hashlib.sha256(img_bytes).hexdigest()[:6]}{extension}"
             file_path = os.path.join(self._temp_dir, file_name)
             with open(file_path, "wb") as f:
                 f.write(img_bytes)
