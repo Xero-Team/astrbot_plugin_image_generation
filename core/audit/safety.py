@@ -139,7 +139,7 @@ class SafetyAuditor:
                 chat_provider_id = await self._context.models.current_chat_provider_id(
                     unified_msg_origin
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - provider lookup must fall back safely
                 logger.warning(
                     f"{LOG} 无法获取当前会话审核模型: {safe_log_text(exc, 160)}"
                 )
