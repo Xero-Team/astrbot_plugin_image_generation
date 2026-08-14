@@ -23,7 +23,7 @@ from astrbot.api.dashboard import (
 )
 
 from ..shared.logging import safe_log_text
-from ..shared.types import ImageCapability
+from ..shared.types import ImageCapability, has_image_capability
 from ..tasks.models import GenerationTaskRecord
 
 PAGE_PREVIEW_MAX_BYTES = 180 * 1024
@@ -305,8 +305,9 @@ class ImageGenerationPageAPI:
                 "max_image_count": self.plugin.config_manager.max_image_count,
                 "default_aspect_ratio": self.plugin.config_manager.default_aspect_ratio,
                 "default_resolution": self.plugin.config_manager.default_resolution,
-                "supports_image_to_image": bool(
-                    capabilities & ImageCapability.IMAGE_TO_IMAGE
+                "supports_image_to_image": has_image_capability(
+                    capabilities,
+                    ImageCapability.IMAGE_TO_IMAGE,
                 ),
                 "presets": [
                     {"name": name, "summary": safe_log_text(value, 120)}

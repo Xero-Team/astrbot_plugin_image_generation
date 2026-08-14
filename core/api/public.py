@@ -35,7 +35,7 @@ from ..config.templates import (
     normalize_name_items,
     parse_preset_prompt,
 )
-from ..shared.types import ImageCapability, ImageData
+from ..shared.types import ImageCapability, ImageData, has_image_capability
 
 LOG = log_prefix("PublicAPI")
 DEFAULT_SOURCE = "公共接口"
@@ -597,7 +597,7 @@ class ImageGenerationPublicAPI:
         has_references = bool(
             persona_images or reference_image_sources or reference_image_data
         )
-        if not (capabilities & ImageCapability.IMAGE_TO_IMAGE):
+        if not has_image_capability(capabilities, ImageCapability.IMAGE_TO_IMAGE):
             if has_references:
                 logger.debug(
                     f"{log_prefix('PublicAPI', task_id)} "

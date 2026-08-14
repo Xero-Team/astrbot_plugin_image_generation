@@ -56,7 +56,7 @@ from .core.shared.logging import (
     safe_log_error_body,
     safe_log_text,
 )
-from .core.shared.types import ImageCapability, ImageData
+from .core.shared.types import ImageCapability, ImageData, has_image_capability
 from .core.tasks.ids import new_task_id
 from .core.tasks.manager import TaskManager
 from .core.tasks.models import (
@@ -714,9 +714,9 @@ class ImageGenerationPlugin(Star):
         task_id = new_task_id()
         try:
             images_data: list[ImageData] | None = None
-            if (
-                self.generator.adapter.get_capabilities()
-                & ImageCapability.IMAGE_TO_IMAGE
+            if has_image_capability(
+                self.generator.adapter.get_capabilities(),
+                ImageCapability.IMAGE_TO_IMAGE,
             ):
                 try:
                     images_data = await collect_command_reference_images(

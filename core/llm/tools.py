@@ -30,7 +30,7 @@ from ..shared.logging import (
     mask_sensitive,
     safe_log_error_body,
 )
-from ..shared.types import ImageCapability
+from ..shared.types import ImageCapability, has_image_capability
 from ..tasks.ids import new_task_id
 from ..tasks.models import GenerationTaskCreationError
 
@@ -641,9 +641,9 @@ def adjust_tool_parameters(tool: FunctionTool, capabilities: ImageCapability) ->
         (ImageCapability.ASPECT_RATIO, "aspect_ratio"),
         (ImageCapability.RESOLUTION, "resolution"),
     ):
-        if not (capabilities & capability):
+        if not has_image_capability(capabilities, capability):
             props.pop(key, None)
-    if not (capabilities & ImageCapability.IMAGE_TO_IMAGE):
+    if not has_image_capability(capabilities, ImageCapability.IMAGE_TO_IMAGE):
         props.pop("avatar_references", None)
         props.pop("reference_images", None)
 

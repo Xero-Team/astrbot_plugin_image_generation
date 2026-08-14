@@ -24,7 +24,12 @@ from ..core.shared.constants import (
     UNSPECIFIED_OPTION,
 )
 from ..core.shared.logging import safe_log_error_body, safe_log_mapping
-from ..core.shared.types import GenerationRequest, ImageCapability, ImageData
+from ..core.shared.types import (
+    GenerationRequest,
+    ImageCapability,
+    ImageData,
+    has_image_capability,
+)
 
 SIZE_PATTERN = re.compile(r"^\d{2,5}x\d{2,5}$")
 
@@ -203,7 +208,9 @@ class ModelScopeAdapter(AsyncPollingImageAdapter):
             payload["negative_prompt"] = negative_prompt
         if size := self._resolve_size(request):
             payload["size"] = size
-        if request.images and self.get_capabilities() & ImageCapability.IMAGE_TO_IMAGE:
+        if request.images and has_image_capability(
+            self.get_capabilities(), ImageCapability.IMAGE_TO_IMAGE
+        ):
             payload["image_url"] = [
                 self._image_to_data_url(image) for image in request.images
             ]

@@ -16,7 +16,12 @@ from ..formatting.result import (
 )
 from ..shared.constants import UNSPECIFIED_OPTION
 from ..shared.logging import log_prefix, safe_log_error_body, safe_log_text
-from ..shared.types import GenerationRequest, ImageCapability, ImageData
+from ..shared.types import (
+    GenerationRequest,
+    ImageCapability,
+    ImageData,
+    has_image_capability,
+)
 from ..tasks.ids import new_task_id
 from ..tasks.manager import TaskManager
 from ..tasks.usage import UsageManager
@@ -120,14 +125,17 @@ class GenerationExecutor:
         except TypeError, ValueError:
             image_count = self.config_manager.default_image_count
         image_count = max(1, min(image_count, self.config_manager.max_image_count))
-        if not (capabilities & ImageCapability.IMAGE_TO_IMAGE) and images_data:
+        if (
+            not has_image_capability(capabilities, ImageCapability.IMAGE_TO_IMAGE)
+            and images_data
+        ):
             logger.warning(
                 f"{task_log} 当前适配器不支持参考图，已忽略 {len(images_data)} 张图片"
             )
             images_data = None
 
         if (
-            not (capabilities & ImageCapability.ASPECT_RATIO)
+            not has_image_capability(capabilities, ImageCapability.ASPECT_RATIO)
             and aspect_ratio != UNSPECIFIED_OPTION
         ):
             logger.debug(
@@ -136,7 +144,7 @@ class GenerationExecutor:
             aspect_ratio = UNSPECIFIED_OPTION
 
         if (
-            not (capabilities & ImageCapability.RESOLUTION)
+            not has_image_capability(capabilities, ImageCapability.RESOLUTION)
             and resolution != UNSPECIFIED_OPTION
         ):
             logger.debug(

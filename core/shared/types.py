@@ -33,6 +33,24 @@ class ImageCapability(enum.Flag):
     ASPECT_RATIO = enum.auto()  # Explicit aspect-ratio support.
 
 
+def has_image_capability(
+    capabilities: object,
+    capability: ImageCapability,
+) -> bool:
+    """Return whether a capability flag is set across plugin reloads.
+
+    AstrBot can briefly retain adapter instances imported by a previous plugin
+    generation during reload. ``enum.Flag`` rejects bitwise operations between
+    otherwise identical enum classes from those two module generations, so
+    compare their stable integer flag values instead.
+    """
+    actual_value = getattr(capabilities, "value", capabilities)
+    expected_value = capability.value
+    if not isinstance(actual_value, int):
+        return False
+    return bool(actual_value & expected_value)
+
+
 @dataclass
 class AdapterMetadata:
     """Metadata describing adapter capabilities."""

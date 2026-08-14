@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from astrbot.api import logger
 
 from ..shared.logging import log_prefix, mask_sensitive, safe_log_text, safe_log_url
-from ..shared.types import ImageCapability, ImageData
+from ..shared.types import ImageCapability, ImageData, has_image_capability
 
 if TYPE_CHECKING:
     from astrbot.api.event import AstrMessageEvent
@@ -180,7 +180,7 @@ async def collect_tool_reference_images(
 ) -> list[ImageData]:
     """Collect LLM tool persona, URL/path, and avatar reference images."""
     task_log = log_prefix("LLMTool", task_id) if task_id else LOG
-    if not (capabilities & ImageCapability.IMAGE_TO_IMAGE):
+    if not has_image_capability(capabilities, ImageCapability.IMAGE_TO_IMAGE):
         if reference_images or avatar_references or persona_images:
             logger.warning(f"{task_log} 当前适配器不支持参考图，已忽略工具参考图参数")
         return []
