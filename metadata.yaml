@@ -1,9 +1,28 @@
 name: astrbot_plugin_image_generation
 display_name: 通用生图
 desc: 通用图像生成插件，支持多种图像生成模型和多样化的生成方式
-version: v1.6.3
+version: 1.7.0
 author: Railgun19457
 repo: https://github.com/Railgun19457/astrbot_plugin_image_generation
-astrbot_version: ">=4.25.3"
-pages:
-  - name: dashboard
+astrbot_version: ">=4.27.3,<5"
+requires:
+  dashboard_extension: 1
+dashboard:
+  extension_id: github.railgun19457.astrbot-image-generation
+  pages:
+    - id: dashboard
+      title: 通用生图控制台
+      module: pages/dashboard/app.js
+      styles:
+        - pages/dashboard/style.css
+      assets_manifest: pages/dashboard/assets.v1.json
+      icon: mdi-image-auto-adjust
+      actions:
+        - image.state.read
+        - image.tasks.list
+        - image.tasks.detail
+        - image.tasks.cancel
+        - image.generate.submit
+        - image.reference.upload
+        - image.preview.read
+        - image.download

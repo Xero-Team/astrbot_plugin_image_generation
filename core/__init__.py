@@ -22,11 +22,11 @@ from .generation.image_utils import (
     validate_resolution,
 )
 from .llm.tools import (
-    ImageGenerationTool,
-    ImageTaskTool,
-    PresetEditTool,
-    PresetQueryTool,
     adjust_tool_parameters,
+    make_image_generation_tool,
+    make_image_task_tool,
+    make_preset_edit_tool,
+    make_preset_query_tool,
 )
 from .shared.constants import (
     DEFAULT_ASPECT_RATIO,
@@ -90,11 +90,11 @@ __all__ = [
     "ImageAuditSettings",
     "SafetyAuditSettings",
     # LLM tools.
-    "ImageGenerationTool",
-    "ImageTaskTool",
-    "PresetQueryTool",
-    "PresetEditTool",
     "adjust_tool_parameters",
+    "make_image_generation_tool",
+    "make_image_task_tool",
+    "make_preset_edit_tool",
+    "make_preset_query_tool",
     "SafetyAuditor",
     # Data types.
     "AdapterConfig",

@@ -4,21 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from astrbot.api import logger
-from astrbot.core.config.astrbot_config import AstrBotConfig
+from astrbot.api import AstrBotConfig, logger
 
-from .validator import ConfigValidator
-from .models import (
-    GenerationSettings,
-    ImageAuditSettings,
-    PersonaTemplate,
-    PluginConfig,
-    PromptAuditSettings,
-    SafetyAuditSettings,
-    UsageSettings,
-)
-from .provider_parser import ConfigProviderParserMixin
-from .templates import ConfigTemplateStoreMixin
 from ..shared.constants import (
     ALL_LLM_TOOLS,
     ALL_RESULT_INFO_ITEMS,
@@ -52,6 +39,18 @@ from ..shared.constants import (
 )
 from ..shared.logging import log_prefix, safe_log_text
 from ..shared.types import AdapterConfig, AdapterType
+from .models import (
+    GenerationSettings,
+    ImageAuditSettings,
+    PersonaTemplate,
+    PluginConfig,
+    PromptAuditSettings,
+    SafetyAuditSettings,
+    UsageSettings,
+)
+from .provider_parser import ConfigProviderParserMixin
+from .templates import ConfigTemplateStoreMixin
+from .validator import ConfigValidator
 
 __all__ = (
     "ConfigManager",
@@ -410,7 +409,7 @@ class ConfigManager(ConfigProviderParserMixin, ConfigTemplateStoreMixin):
             return default
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
         return max(min_value, parsed)
 
@@ -425,7 +424,7 @@ class ConfigManager(ConfigProviderParserMixin, ConfigTemplateStoreMixin):
                 continue
             try:
                 value = int(item)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             if value not in result:
                 result.append(value)

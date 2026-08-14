@@ -5,24 +5,24 @@ import time
 
 from astrbot.api import logger
 from astrbot.api.event import MessageChain
-from astrbot.api.star import Context
+from astrbot.api.star import PluginContext
 
-from ..config.manager import ConfigManager
-from ..shared.constants import UNSPECIFIED_OPTION
 from ..adapters.generator import ImageGenerator
-from .image_processor import ImageProcessor
-from ..shared.logging import log_prefix, safe_log_error_body, safe_log_text
-from .reference_collector import ensure_image_data
+from ..audit.safety import SafetyAuditor
+from ..config.manager import ConfigManager
 from ..formatting.result import (
     build_result_info_message,
     format_generation_failure_message,
 )
-from ..audit.safety import SafetyAuditor
+from ..shared.constants import UNSPECIFIED_OPTION
+from ..shared.logging import log_prefix, safe_log_error_body, safe_log_text
+from ..shared.types import GenerationRequest, ImageCapability, ImageData
 from ..tasks.ids import new_task_id
 from ..tasks.manager import TaskManager
-from ..shared.types import GenerationRequest, ImageCapability, ImageData
 from ..tasks.usage import UsageManager
+from .image_processor import ImageProcessor
 from .image_utils import validate_aspect_ratio, validate_resolution
+from .reference_collector import ensure_image_data
 
 LOG = log_prefix("GenerationExecutor")
 
@@ -33,7 +33,7 @@ class GenerationExecutor:
     def __init__(
         self,
         *,
-        context: Context,
+        context: PluginContext,
         config_manager: ConfigManager,
         image_processor: ImageProcessor,
         task_manager: TaskManager,
@@ -117,7 +117,7 @@ class GenerationExecutor:
         task_log = log_prefix("Task", task_id)
         try:
             image_count = int(image_count)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             image_count = self.config_manager.default_image_count
         image_count = max(1, min(image_count, self.config_manager.max_image_count))
         if not (capabilities & ImageCapability.IMAGE_TO_IMAGE) and images_data:
@@ -179,7 +179,7 @@ class GenerationExecutor:
                 deliver_via_ai,
                 auto_send,
             )
-        except (asyncio.CancelledError, Exception):
+        except asyncio.CancelledError, Exception:
             self.release_generation_task_quota_once(task_id)
             raise
 
@@ -273,7 +273,7 @@ class GenerationExecutor:
             self.task_manager.mark_generation_task_failed(task_id, error)
             if skip_direct_delivery:
                 return
-            await self.context.send_message(
+            await self._send_chain(
                 unified_msg_origin,
                 MessageChain().message(format_generation_failure_message(error)),
             )
@@ -300,7 +300,7 @@ class GenerationExecutor:
             )
             if skip_direct_delivery:
                 return
-            await self.context.send_message(
+            await self._send_chain(
                 unified_msg_origin,
                 MessageChain().message(f"❌ 图片内容审核未通过: {image_reason}"),
             )
@@ -380,7 +380,9 @@ class GenerationExecutor:
 
             batch_index = start // max_per_message + 1
             try:
-                await self.context.send_message(unified_msg_origin, chain)
+                delivery = await self.context.messages.send(unified_msg_origin, chain)
+                if not delivery.success:
+                    raise RuntimeError(delivery.error_message or "消息平台拒绝发送")
                 sent_batches += 1
             except Exception as exc:
                 error_message = (
@@ -389,6 +391,20 @@ class GenerationExecutor:
                 errors.append(error_message)
                 logger.error(f"{LOG} {error_message}", exc_info=True)
         return sent_batches, errors
+
+    async def _send_chain(
+        self,
+        unified_msg_origin: str,
+        chain: MessageChain,
+    ) -> None:
+        """Deliver one message chain and log platform-level failures."""
+        delivery = await self.context.messages.send(unified_msg_origin, chain)
+        if not delivery.success:
+            logger.warning(
+                "%s 消息发送失败: %s",
+                LOG,
+                safe_log_error_body(delivery.error_message or "unknown error", 160),
+            )
 
     async def _generate_image_requests_concurrently(
         self,
@@ -441,9 +457,7 @@ class GenerationExecutor:
                         task_id=task_id,
                         batch_index=current_index,
                         batch_count=image_count,
-                        retry_status_callback=lambda retry_attempt,
-                        max_retry_attempts,
-                        current_index=current_index: (
+                        retry_status_callback=lambda retry_attempt, max_retry_attempts, current_index=current_index: (
                             self.task_manager.update_generation_task_retry_status(
                                 task_id,
                                 current_index=current_index,

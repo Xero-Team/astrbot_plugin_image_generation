@@ -6,7 +6,7 @@ import json
 import re
 
 from astrbot.api import logger
-from astrbot.api.star import Context
+from astrbot.api.star import PluginContext
 
 from ..config.manager import ConfigManager
 from ..shared.logging import log_prefix, safe_log_text
@@ -20,7 +20,7 @@ class SafetyAuditor:
     PROMPT_PLACEHOLDER = "{prompt}"
     AUDIT_RESULT_TAGS = ("audit_result", "result", "output", "json")
 
-    def __init__(self, context: Context, config_manager: ConfigManager):
+    def __init__(self, context: PluginContext, config_manager: ConfigManager):
         self._context = context
         self._config_manager = config_manager
 
@@ -127,18 +127,24 @@ class SafetyAuditor:
         max_retry_attempts: int,
         image_urls: list[str] | None,
     ) -> tuple[bool, str]:
-        provider = None
-        if provider_id:
-            provider = self._context.get_provider_by_id(provider_id)
-            if not provider:
+        chat_provider_id = provider_id.strip()
+        if chat_provider_id and self._context.models.get(chat_provider_id) is None:
+            logger.warning(
+                f"{LOG} 未找到审核 Provider ID: {safe_log_text(chat_provider_id)}，将回退到当前会话模型"
+            )
+            chat_provider_id = ""
+
+        if not chat_provider_id:
+            try:
+                chat_provider_id = await self._context.models.current_chat_provider_id(
+                    unified_msg_origin
+                )
+            except Exception as exc:
                 logger.warning(
-                    f"{LOG} 未找到审核 Provider ID: {safe_log_text(provider_id)}，将回退到当前会话模型"
+                    f"{LOG} 无法获取当前会话审核模型: {safe_log_text(exc, 160)}"
                 )
 
-        if provider is None:
-            provider = self._context.get_using_provider(unified_msg_origin)
-
-        if not provider:
+        if not chat_provider_id:
             msg = "安全审核异常：未找到可用审核模型"
             logger.warning(f"{LOG} {msg}")
             return False, msg
@@ -147,10 +153,10 @@ class SafetyAuditor:
         last_reason = "安全审核异常：模型返回为空"
         for attempt in range(1, attempts + 1):
             try:
-                response = await provider.text_chat(
+                response = await self._context.models.generate(
+                    chat_provider_id=chat_provider_id,
                     prompt=review_prompt,
                     image_urls=image_urls or [],
-                    persist=False,
                 )
                 completion_text = (response.completion_text or "").strip()
                 decision, reason = self._parse_audit_response(completion_text)

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "pages/dashboard/app.js",
+      "sha256": "ff799a3fb7fbe7dcc5cbf91afe578557984e917d20c3ed094b5547d13beeeb1a",
+      "size": 13445
+    },
+    {
+      "path": "pages/dashboard/style.css",
+      "sha256": "54d5bbbe70bc8728bacd3dcd6360b16bf13698bd1f2e15f51d513607d8fea48b",
+      "size": 31724
+    }
+  ]
+}

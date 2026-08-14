@@ -6,19 +6,17 @@ import hashlib
 import ntpath
 import os
 import posixpath
-import re
 import time
 from collections.abc import Iterable
 from io import BytesIO
 from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
+import aiohttp
 from PIL import Image, UnidentifiedImageError
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
-from astrbot.core.utils.astrbot_path import get_astrbot_workspaces_path
-from astrbot.core.utils.io import download_image_by_url
 
 from ..shared.logging import (
     log_prefix,
@@ -96,15 +94,14 @@ class ImageProcessor:
         return self._temp_dir
 
     def workspace_dir_for_origin(self, unified_msg_origin: str | None) -> str | None:
-        """Return the AstrBot local workspace path for a session origin."""
-        origin = str(unified_msg_origin or "").strip()
-        if not origin:
-            return None
-        normalized_origin = re.sub(r"[^A-Za-z0-9._-]+", "_", origin)
-        normalized_origin = normalized_origin or "unknown"
-        return os.path.realpath(
-            os.path.join(get_astrbot_workspaces_path(), normalized_origin)
-        )
+        """Return no workspace path.
+
+        The current public SDK deliberately does not expose global AstrBot
+        workspaces.  Plugin-owned data and incoming message URLs remain valid
+        reference sources without reading another runtime-owned directory.
+        """
+        _ = unified_msg_origin
+        return None
 
     def _normalize_allowed_base_dirs(
         self,
@@ -240,13 +237,7 @@ class ImageProcessor:
                 if not self._is_network_url(url):
                     logger.warning(f"{LOG} 不支持的图片来源: {safe_log_url(url)}")
                     return None
-                # Use the plugin temporary directory for downloaded references.
-                file_name = f"ref_{hashlib.md5(url.encode()).hexdigest()[:10]}"
-                path = os.path.join(self._temp_dir, file_name)
-                path = await download_image_by_url(url, path=path)
-                if path:
-                    with open(path, "rb") as f:
-                        data = f.read()
+                data = await self._download_remote_image(url)
 
             if not data:
                 return None
@@ -265,6 +256,34 @@ class ImageProcessor:
                 f"{LOG} 获取图片失败: {safe_log_url(url)} ({safe_log_error_body(exc)})"
             )
         return None
+
+    async def _download_remote_image(self, url: str) -> bytes | None:
+        """Download one remote image with a bounded, redirect-free request."""
+        max_bytes = self._max_image_size_mb * 1024 * 1024
+        timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, allow_redirects=False) as response:
+                if response.status != 200:
+                    logger.warning(
+                        "%s 远程参考图请求失败: status=%s source=%s",
+                        LOG,
+                        response.status,
+                        safe_log_url(url),
+                    )
+                    return None
+                chunks: list[bytes] = []
+                size = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    size += len(chunk)
+                    if size > max_bytes:
+                        logger.warning(
+                            "%s 图片超过大小限制 (%sMB)",
+                            LOG,
+                            self._max_image_size_mb,
+                        )
+                        return None
+                    chunks.append(chunk)
+                return b"".join(chunks)
 
     def validate_image_data(
         self,
@@ -309,7 +328,7 @@ class ImageProcessor:
         try:
             with Image.open(BytesIO(data)) as image:
                 image.verify()
-        except (UnidentifiedImageError, OSError, ValueError):
+        except UnidentifiedImageError, OSError, ValueError:
             return False
         return True
 
@@ -317,14 +336,9 @@ class ImageProcessor:
         """Fetch a user's avatar image bytes."""
         url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
         try:
-            file_name = f"avatar_{user_id}.jpg"
-            path = os.path.join(self._temp_dir, file_name)
-            path = await download_image_by_url(url, path=path)
-            if path:
-                with open(path, "rb") as f:
-                    data = f.read()
-                if self.validate_image_data(data, log_source=url):
-                    return data
+            data = await self._download_remote_image(url)
+            if data and self.validate_image_data(data, log_source=url):
+                return data
         except Exception as e:
             logger.debug(
                 f"{LOG} 获取头像失败 (user_id={mask_sensitive(user_id)}): {safe_log_error_body(e)}"

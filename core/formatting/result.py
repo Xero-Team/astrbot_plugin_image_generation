@@ -15,8 +15,8 @@ from ..config.manager import (
     RESULT_INFO_USAGE,
 )
 from ..shared.constants import UNSPECIFIED_OPTION
-from ..tasks.models import GenerationTaskItemStatus, GenerationTaskStatus
 from ..shared.logging import log_prefix, safe_log_text
+from ..tasks.models import GenerationTaskItemStatus, GenerationTaskStatus
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
@@ -312,11 +312,11 @@ def format_image_command_help(config_manager: ConfigManager) -> str:
         f"当前模型: {current_model}",
         "",
         "指令列表:",
-        "/生图 [预设/人设] [提示词] [数量]",
-        "/生图模型 - 查看或切换模型",
-        "/生图任务 [编号或任务ID] - 查看正在进行的任务",
-        "/生图取消 <编号或任务ID> - 取消指定任务",
-        "/预设 [添加/删除] - 查看或管理预设/人设",
+        "/image [预设/人设] [提示词] [--count 数量]（别名：/生图）",
+        "/image-model - 查看或切换模型（别名：/生图模型）",
+        "/image-task [编号或任务ID] - 查看正在进行的任务",
+        "/image-cancel <编号或任务ID> - 取消指定任务",
+        "/image-preset [添加/删除] - 查看或管理预设/人设",
     ]
     return "\n".join(lines)
 

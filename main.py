@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
-from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from astrbot.api import logger
+from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star
-from astrbot.core.config.astrbot_config import AstrBotConfig
-from astrbot.core.star.star_tools import StarTools
-from astrbot.core.utils.astrbot_path import get_astrbot_temp_path
+from astrbot.api.event.filter import GreedyStr
+from astrbot.api.star import PluginContext, Star
 
+from .core.adapters.generator import ImageGenerator
+from .core.api.public import ImageGenerationPublicAPI
+from .core.audit.safety import SafetyAuditor
 from .core.config.manager import (
     LLM_TOOL_IMAGE_GENERATION,
     LLM_TOOL_PRESET_EDIT,
@@ -21,30 +21,12 @@ from .core.config.manager import (
     LLM_TOOL_TASK_MANAGEMENT,
     ConfigManager,
 )
-from .core.generation.executor import GenerationExecutor
-from .core.tasks.models import (
-    GenerationTaskCreationError,
-    GenerationTaskRecord,
-    GenerationTaskStatus,
+from .core.config.templates import (
+    build_generation_prompt,
+    find_named_entry,
+    format_template_summary,
+    parse_preset_prompt,
 )
-from .core.adapters.generator import ImageGenerator
-from .core.generation.image_processor import ImageProcessor
-from .core.llm.result_handler import LLMResultHandler
-from .core.llm.tools import (
-    ImageGenerationTool,
-    ImageTaskTool,
-    PresetEditTool,
-    PresetQueryTool,
-    adjust_tool_parameters,
-)
-from .core.shared.logging import (
-    log_prefix,
-    mask_sensitive,
-    safe_log_error_body,
-    safe_log_text,
-)
-from .core.api.public import ImageGenerationPublicAPI
-from .core.generation.reference_collector import collect_command_reference_images
 from .core.formatting.result import (
     format_image_command_help as render_image_command_help,
 )
@@ -57,17 +39,31 @@ from .core.formatting.result import (
 from .core.formatting.result import (
     format_task_list as render_task_list,
 )
-from .core.audit.safety import SafetyAuditor
+from .core.generation.executor import GenerationExecutor
+from .core.generation.image_processor import ImageProcessor
+from .core.generation.reference_collector import collect_command_reference_images
+from .core.llm.result_handler import LLMResultHandler
+from .core.llm.tools import (
+    make_image_generation_tool,
+    make_image_task_tool,
+    make_preset_edit_tool,
+    make_preset_query_tool,
+)
 from .core.page import ImageGenerationPageAPI
-from .core.tasks.ids import new_task_id
-from .core.tasks.manager import TaskManager
-from .core.config.templates import (
-    build_generation_prompt,
-    find_named_entry,
-    format_template_summary,
-    parse_preset_prompt,
+from .core.shared.logging import (
+    log_prefix,
+    mask_sensitive,
+    safe_log_error_body,
+    safe_log_text,
 )
 from .core.shared.types import ImageCapability, ImageData
+from .core.tasks.ids import new_task_id
+from .core.tasks.manager import TaskManager
+from .core.tasks.models import (
+    GenerationTaskCreationError,
+    GenerationTaskRecord,
+    GenerationTaskStatus,
+)
 from .core.tasks.usage import UsageManager
 
 LOG = log_prefix("Plugin")
@@ -76,14 +72,12 @@ LOG = log_prefix("Plugin")
 class ImageGenerationPlugin(Star):
     """Main image generation plugin class."""
 
-    def __init__(self, context: Context, config: AstrBotConfig):
+    def __init__(self, context: PluginContext, config: AstrBotConfig):
         super().__init__(context)
-        self.context = context
 
-        # Store persistent data in the plugin directory and images in AstrBot temp.
-        self.data_dir = StarTools.get_data_dir()
-        self.astrbot_temp_dir = Path(get_astrbot_temp_path())
-        self.image_temp_dir = self.astrbot_temp_dir / "astrbot_plugin_image_generation"
+        # Keep all state under the public plugin-owned storage capability.
+        self.data_dir = self.context.storage.data_directory()
+        self.image_temp_dir = self.data_dir / "images"
         self.image_temp_dir.mkdir(parents=True, exist_ok=True)
         self.page_upload_dir = self.image_temp_dir / "page_uploads"
         self.page_upload_dir.mkdir(parents=True, exist_ok=True)
@@ -101,7 +95,7 @@ class ImageGenerationPlugin(Star):
             str(self.image_temp_dir),
             self.config_manager.usage_settings.max_image_size_mb,
             str(self.data_dir),
-            allowed_local_base_dirs=[str(self.astrbot_temp_dir)],
+            allowed_local_base_dirs=[str(self.data_dir)],
         )
 
         # Initialize task management.
@@ -114,12 +108,7 @@ class ImageGenerationPlugin(Star):
         )
 
         # Initialize LLM tool result handling.
-        self.llm_result_handler = LLMResultHandler(
-            context=self.context,
-            config_manager=self.config_manager,
-            task_manager=self.task_manager,
-            create_background_task=self.create_background_task,
-        )
+        self.llm_result_handler = LLMResultHandler(self.config_manager)
 
         # Initialize safety auditing.
         self.safety_auditor = SafetyAuditor(self.context, self.config_manager)
@@ -140,9 +129,8 @@ class ImageGenerationPlugin(Star):
         # Initialize the generator lazily after configuration is loaded.
         self.generator: ImageGenerator | None = None
 
-        # Register WebUI Plugin Page APIs.
+        # Register the Dashboard Extension only after AstrBot starts staging it.
         self.page_api = ImageGenerationPageAPI(self)
-        self.page_api.register()
 
     # Lifecycle.
 
@@ -174,6 +162,9 @@ class ImageGenerationPlugin(Star):
         # Register LLM tools.
         self._register_llm_tools()
 
+        # Dashboard actions must be registered during initialize().
+        self.page_api.register()
+
         # Configure scheduled tasks.
         self._setup_jimeng_token_task()
 
@@ -190,6 +181,7 @@ class ImageGenerationPlugin(Star):
             await self.task_manager.cancel_all()
             if self.generator:
                 await self.generator.close()
+            self.page_api.terminate()
             logger.info(f"{LOG} 插件已卸载")
         except Exception as exc:
             logger.error(f"{LOG} 卸载清理出错: {exc}", exc_info=True)
@@ -201,23 +193,21 @@ class ImageGenerationPlugin(Star):
         tools = []
         if self.config_manager.is_llm_tool_enabled(LLM_TOOL_IMAGE_GENERATION):
             if self.generator:
-                image_tool = ImageGenerationTool(plugin=self)
-                self._adjust_tool_parameters(image_tool)
-                tools.append(image_tool)
+                tools.append(make_image_generation_tool(self))
             else:
                 logger.warning(f"{LOG} 生图工具已启用，但生成器未初始化")
 
         if self.config_manager.is_llm_tool_enabled(LLM_TOOL_PRESET_QUERY):
-            tools.append(PresetQueryTool(plugin=self))
+            tools.append(make_preset_query_tool(self))
 
         if self.config_manager.is_llm_tool_enabled(LLM_TOOL_TASK_MANAGEMENT):
-            tools.append(ImageTaskTool(plugin=self))
+            tools.append(make_image_task_tool(self))
 
         if self.config_manager.is_llm_tool_enabled(LLM_TOOL_PRESET_EDIT):
-            tools.append(PresetEditTool(plugin=self))
+            tools.append(make_preset_edit_tool(self))
 
         if tools:
-            self.context.add_llm_tools(*tools)
+            self.context.tools.add(*tools)
             logger.info(
                 f"{LOG} 已注册 LLM 工具: " + ", ".join(tool.name for tool in tools)
             )
@@ -255,26 +245,6 @@ class ImageGenerationPlugin(Star):
             run_immediately=False,  # Startup task already handles the first run.
         )
         logger.info(f"{LOG} 已配置即梦2API自动领积分任务（启动时+每日）")
-
-    def _adjust_tool_parameters(self, tool: ImageGenerationTool) -> None:
-        """Adjust LLM tool parameters based on adapter capabilities."""
-        if not self.generator or not self.generator.adapter:
-            return
-        capabilities = self.generator.adapter.get_capabilities()
-        adjust_tool_parameters(tool, capabilities)
-        props = tool.parameters.get("properties", {})
-        if not self.config_manager.personas:
-            props.pop("persona", None)
-            return
-        persona_props = props.get("persona")
-        if not isinstance(persona_props, dict):
-            return
-        persona_props.pop("enum", None)
-        if persona_names := "、".join(self.config_manager.personas):
-            persona_props["description"] = (
-                str(persona_props.get("description", "")).rstrip("。")
-                + f"。可用人设: {persona_names}；多个名称可用空格分隔。"
-            )
 
     def create_background_task(
         self, coro: Coroutine[Any, Any, Any], name: str | None = None
@@ -332,7 +302,6 @@ class ImageGenerationPlugin(Star):
         preset_label: str = "预设",
         presets: list[str] | None = None,
         personas: list[str] | None = None,
-        source_event: AstrMessageEvent | None = None,
         auto_send: bool = True,
     ) -> GenerationTaskRecord:
         """Create and track an image generation task in the unified task manager."""
@@ -353,7 +322,7 @@ class ImageGenerationPlugin(Star):
                 image_count=image_count,
                 task_id=task_id,
                 is_usage_limit_admin=is_usage_limit_admin,
-                deliver_via_ai=source == "LLM工具",
+                deliver_via_ai=False,
                 auto_send=auto_send,
             )
 
@@ -389,11 +358,6 @@ class ImageGenerationPlugin(Star):
                 count=image_count,
             )
             raise
-        if source == "LLM工具":
-            self.llm_result_handler.attach_task_wakeup(
-                record,
-                source_event=source_event,
-            )
         return record
 
     def _handle_generation_task_terminal(self, record: GenerationTaskRecord) -> None:
@@ -428,22 +392,9 @@ class ImageGenerationPlugin(Star):
         """Normalize requested image count using configured bounds."""
         try:
             count = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             count = self.config_manager.default_image_count
         return max(1, min(count, self.config_manager.max_image_count))
-
-    def _parse_command_image_count(self, prompt: str) -> tuple[int, str]:
-        """Parse optional image count from command prompt suffix."""
-        raw_prompt = prompt.strip()
-        default_count = self.config_manager.default_image_count
-        if not raw_prompt:
-            return default_count, ""
-
-        tokens = raw_prompt.split()
-        if tokens[-1].isdecimal():
-            return self.normalize_image_count(tokens[-1]), " ".join(tokens[:-1]).strip()
-
-        return default_count, raw_prompt
 
     def _parse_command_prompt_templates(
         self,
@@ -592,7 +543,7 @@ class ImageGenerationPlugin(Star):
 
     # Command handlers.
 
-    @filter.command("生图任务")
+    @filter.command("image-task", alias={"生图任务"})
     async def image_task_command(self, event: AstrMessageEvent, task_id: str = ""):
         """Show image generation tasks or one task detail."""
         user_id = event.unified_msg_origin
@@ -627,7 +578,7 @@ class ImageGenerationPlugin(Star):
         )
         yield event.plain_result(self.format_task_list(records))
 
-    @filter.command("生图取消")
+    @filter.command("image-cancel", alias={"生图取消"})
     async def cancel_image_task_command(
         self, event: AstrMessageEvent, task_id: str = ""
     ):
@@ -665,24 +616,24 @@ class ImageGenerationPlugin(Star):
         )
         yield event.plain_result(message)
 
-    @filter.command("生图")
-    async def generate_image_command(self, event: AstrMessageEvent):
+    @filter.command("image", alias={"生图"})
+    async def generate_image_command(
+        self,
+        event: AstrMessageEvent,
+        prompt: GreedyStr = "",
+        image_count: Annotated[int | None, filter.option("--count", "-n")] = None,
+    ):
         """Handle the image generation command."""
         user_id = event.unified_msg_origin
         is_usage_limit_admin = self.is_usage_limit_admin(event)
 
-        user_input = (event.message_str or "").strip()
+        user_input = str(prompt or "").strip()
         masked_uid = mask_sensitive(user_id)
         logger.debug(
             f"{LOG} 收到生图指令: 用户={masked_uid}，输入长度={len(user_input)}"
         )
 
-        cmd_parts = user_input.split(maxsplit=1)
-        if not cmd_parts:
-            return
-
-        raw_prompt = cmd_parts[1].strip() if len(cmd_parts) > 1 else ""
-        if not raw_prompt:
+        if not user_input:
             yield event.plain_result(self.format_image_command_help())
             return
 
@@ -691,7 +642,12 @@ class ImageGenerationPlugin(Star):
             yield event.plain_result("❌ 生图生成器未初始化")
             return
 
-        image_count, prompt = self._parse_command_image_count(raw_prompt)
+        image_count = self.normalize_image_count(
+            image_count
+            if image_count is not None
+            else self.config_manager.default_image_count
+        )
+        prompt = user_input
 
         aspect_ratio = self.config_manager.default_aspect_ratio
         resolution = self.config_manager.default_resolution
@@ -843,7 +799,7 @@ class ImageGenerationPlugin(Star):
         if msg:
             yield event.plain_result(msg)
 
-    @filter.command("生图模型")
+    @filter.command("image-model", alias={"生图模型"})
     async def model_command(self, event: AstrMessageEvent, model_index: str = ""):
         """Switch the active image generation model."""
         if not self.config_manager.adapter_config:
@@ -890,18 +846,22 @@ class ImageGenerationPlugin(Star):
         except ValueError:
             yield event.plain_result("❌ 请输入有效的数字序号")
 
-    @filter.command("预设")
-    async def preset_command(self, event: AstrMessageEvent):
+    @filter.command("image-preset", alias={"预设"})
+    async def preset_command(
+        self,
+        event: AstrMessageEvent,
+        action: str = "",
+        content: GreedyStr = "",
+    ):
         """Manage image generation presets."""
         user_id = event.unified_msg_origin
         masked_uid = mask_sensitive(user_id)
-        message_str = (event.message_str or "").strip()
+        message_str = " ".join(item for item in (action, content) if item).strip()
         logger.debug(
             f"{LOG} 收到预设指令: 用户={masked_uid}，输入={safe_log_text(message_str)}"
         )
 
-        parts = message_str.split(maxsplit=1)
-        cmd_text = parts[1].strip() if len(parts) > 1 else ""
+        cmd_text = message_str
 
         if not cmd_text:
             if not self.config_manager.presets and not self.config_manager.personas:
@@ -933,8 +893,8 @@ class ImageGenerationPlugin(Star):
             yield event.plain_result("\n".join(preset_list))
             return
 
-        if cmd_text.startswith("添加 "):
-            preset_text = cmd_text[3:].strip()
+        if action == "添加":
+            preset_text = str(content or "").strip()
             delimiter_positions = [
                 (index, delimiter)
                 for index, delimiter in (
@@ -951,8 +911,8 @@ class ImageGenerationPlugin(Star):
                 yield event.plain_result(f"✅ 预设已添加: {name}")
             else:
                 yield event.plain_result("❌ 格式错误: /预设 添加 名称:内容")
-        elif cmd_text.startswith("删除 "):
-            name = cmd_text[3:].strip()
+        elif action == "删除":
+            name = str(content or "").strip()
             if self.config_manager.delete_preset(name):
                 yield event.plain_result(f"✅ 预设已删除: {name}")
             else:
