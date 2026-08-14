@@ -1,0 +1,18 @@
+extends: default
+
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+
+rules:
+  document-start: disable
+  line-length: disable
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+
+ignore: |
+  .agents/
+  .venv/
+  data/
+  dist/

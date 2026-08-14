@@ -306,4 +306,19 @@ LLM 生图工具支持 `preset`、`persona`、`aspect_ratio`、`resolution`、`i
 
 开发与验证应使用 Xero-Team/AstrBot 源码根目录及其 Python 3.14.6 工具链。插件只依赖 `astrbot.api` 提供的公开接口；修改 Dashboard 前端资源后，需要同步更新 `pages/dashboard/assets.v1.json` 中的文件大小和 SHA-256 摘要。
 
-提交前建议至少运行插件静态契约检查、Python 编译和现有测试；真实消息平台、模型服务和 Dashboard 页面仍应在对应环境中手动验证。
+安装质量工具后，可使用与 AstrBot 一致的 Python 3.14 / Ruff 规则运行：
+
+```bash
+python -m pip install -r requirements-dev.txt
+make format   # 自动格式化并修复安全的 Ruff 问题
+make check    # 格式、Ruff、编译、测试、配置与 Dashboard 资源检查
+make quality  # check + Bandit、依赖审计、复杂度门禁
+```
+
+如本机有目标 AstrBot 源码，还可运行完整插件契约检查：
+
+```bash
+make check-contract ASTRBOT_ROOT=/path/to/AstrBot
+```
+
+真实消息平台、模型服务和 Dashboard 页面仍应在对应环境中手动验证。

@@ -1,0 +1,52 @@
+[project]
+name = "astrbot-plugin-image-generation"
+version = "1.7.0"
+requires-python = ">=3.14"
+
+[tool.ruff]
+exclude = [
+  ".agents",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".venv",
+  "data",
+  "dist",
+  "tests",
+]
+line-length = 88
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+  "F",     # Pyflakes
+  "W",     # pycodestyle warnings
+  "E",     # pycodestyle errors
+  "ASYNC", # flake8-async
+  "C4",    # flake8-comprehensions
+  "Q",     # flake8-quotes
+  "I",     # import-order
+  "UP",    # pyupgrade
+]
+ignore = [
+  "F403",
+  "F405",
+  "E501",
+  "ASYNC230",
+  "ASYNC240",
+  # These migrations change established public enum stringification and
+  # asyncio exception aliases; handle them in a dedicated compatibility change.
+  "UP041",
+  "UP042",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+faulthandler_timeout = "120"
+faulthandler_exit_on_timeout = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "data", ".venv", "dist"]

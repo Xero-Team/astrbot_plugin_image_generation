@@ -8,3 +8,4 @@ data/
 dashboard_exports/
 TODO.md
 dist/
+uv.lock
