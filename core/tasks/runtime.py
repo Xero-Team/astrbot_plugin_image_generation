@@ -9,18 +9,18 @@ from typing import Any
 
 from astrbot.api import logger
 
-from .models import (
-    GenerationQueueItem,
-    GenerationTaskRecord,
-    GenerationTaskStatus,
-    TERMINAL_GENERATION_STATUSES,
-)
 from ..shared.logging import (
     format_log_event,
     format_seconds,
     log_prefix,
     safe_log_error_body,
     safe_log_text,
+)
+from .models import (
+    TERMINAL_GENERATION_STATUSES,
+    GenerationQueueItem,
+    GenerationTaskRecord,
+    GenerationTaskStatus,
 )
 
 LOG = log_prefix("TaskManager")

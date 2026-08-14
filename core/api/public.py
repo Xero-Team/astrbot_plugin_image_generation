@@ -7,27 +7,6 @@ from typing import Any
 
 from astrbot.api import logger
 
-from .models import (
-    ImageGenerationOperationResult,
-    ImageGenerationResult,
-    ImageGenerationSubmitResult,
-    ImageGenerationTaskSnapshot,
-    PublicAPIResultCode,
-)
-from ..tasks.models import GenerationTaskCreationError, GenerationTaskRecord
-from ..shared.logging import (
-    format_log_event,
-    log_prefix,
-    mask_sensitive,
-    safe_log_error_body,
-    safe_log_text,
-)
-from ..generation.reference_collector import (
-    collect_reference_images_from_personas,
-    deduplicate_reference_images,
-    download_reference_images,
-)
-from ..tasks.ids import new_task_id
 from ..config.templates import (
     build_generation_prompt,
     find_named_entry,
@@ -35,7 +14,28 @@ from ..config.templates import (
     normalize_name_items,
     parse_preset_prompt,
 )
+from ..generation.reference_collector import (
+    collect_reference_images_from_personas,
+    deduplicate_reference_images,
+    download_reference_images,
+)
+from ..shared.logging import (
+    format_log_event,
+    log_prefix,
+    mask_sensitive,
+    safe_log_error_body,
+    safe_log_text,
+)
 from ..shared.types import ImageCapability, ImageData, has_image_capability
+from ..tasks.ids import new_task_id
+from ..tasks.models import GenerationTaskCreationError, GenerationTaskRecord
+from .models import (
+    ImageGenerationOperationResult,
+    ImageGenerationResult,
+    ImageGenerationSubmitResult,
+    ImageGenerationTaskSnapshot,
+    PublicAPIResultCode,
+)
 
 LOG = log_prefix("PublicAPI")
 DEFAULT_SOURCE = "公共接口"
@@ -654,7 +654,7 @@ class ImageGenerationPublicAPI:
             else:
                 try:
                     data, _mime = item
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     logger.debug(f"{LOG} 已忽略格式错误的二进制参考图")
                     continue
             if isinstance(data, bytearray):

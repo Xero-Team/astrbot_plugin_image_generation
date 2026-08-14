@@ -147,7 +147,7 @@ def _try_parse_json_text(value: object) -> object | None:
         return None
     try:
         return json.loads(text)
-    except (TypeError, json.JSONDecodeError):
+    except TypeError, json.JSONDecodeError:
         return None
 
 

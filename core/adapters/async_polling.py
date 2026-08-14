@@ -369,7 +369,7 @@ class AsyncPollingImageAdapter(BaseImageAdapter):
             return default
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
         return parsed if parsed >= minimum else default
 

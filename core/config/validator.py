@@ -201,7 +201,7 @@ class ConfigValidator:
             return default
         try:
             return parser(raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     def _coerce_bool(self, raw: Any, default: bool) -> bool:
@@ -258,7 +258,7 @@ class ConfigValidator:
                 continue
             try:
                 parsed = int(item)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 changed = True
                 continue
             parsed, min_changed = self._validate_number_minimum(

@@ -4,7 +4,6 @@ import base64
 import time
 
 import aiohttp
-
 from astrbot.api import logger
 
 from ..core.adapters.base import BaseImageAdapter

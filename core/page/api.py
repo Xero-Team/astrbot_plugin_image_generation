@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from astrbot.api.dashboard import (
     DashboardActionContext,
     DashboardActionError,
@@ -21,6 +19,7 @@ from astrbot.api.dashboard import (
     DashboardUploadAction,
     DashboardUploadedFile,
 )
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..shared.logging import safe_log_text
 from ..shared.types import ImageCapability, has_image_capability

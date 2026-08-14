@@ -13,8 +13,8 @@ from astrbot.api import logger
 from ..core.adapters.async_polling import (
     ASYNC_AMBIGUOUS_SUBMIT_ERROR,
     AsyncAttemptContext,
-    AsyncPollResult,
     AsyncPollingImageAdapter,
+    AsyncPollResult,
     AsyncRemoteStatus,
     AsyncSubmitResult,
 )

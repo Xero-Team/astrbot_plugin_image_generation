@@ -405,7 +405,7 @@ class VolcengineArkAdapter(BaseImageAdapter):
             return default
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
         return max(min_value, min(max_value, parsed))
 

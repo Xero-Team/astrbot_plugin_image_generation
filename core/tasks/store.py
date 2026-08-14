@@ -8,13 +8,13 @@ from typing import Any
 
 from astrbot.api import logger
 
+from ..shared.logging import log_prefix, safe_log_error_body, safe_log_text
 from .models import (
     GenerationTaskItem,
     GenerationTaskRecord,
     GenerationTaskStatus,
     coerce_generation_item_status,
 )
-from ..shared.logging import log_prefix, safe_log_error_body, safe_log_text
 
 LOG = log_prefix("GenerationTaskStore")
 
@@ -299,7 +299,7 @@ class GenerationTaskStore:
             return default
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
         return max(minimum, parsed)
 

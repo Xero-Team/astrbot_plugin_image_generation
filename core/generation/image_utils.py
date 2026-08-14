@@ -4,9 +4,8 @@ import asyncio
 from collections.abc import Iterable
 from io import BytesIO
 
-from PIL import Image
-
 from astrbot.api import logger
+from PIL import Image
 
 from ..shared.constants import SUPPORTED_ASPECT_RATIOS, SUPPORTED_RESOLUTIONS
 from ..shared.logging import (

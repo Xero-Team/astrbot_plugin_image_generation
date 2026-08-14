@@ -8,7 +8,6 @@ import re
 from typing import Any
 
 import aiohttp
-
 from astrbot.api import logger
 
 from ..shared.constants import DEFAULT_DOWNLOAD_TIMEOUT
@@ -22,8 +21,8 @@ from ..shared.logging import (
     mask_sensitive,
     safe_log_error_body,
     safe_log_text,
-    safe_user_error_detail,
     safe_log_url,
+    safe_user_error_detail,
 )
 from ..shared.types import (
     AdapterConfig,

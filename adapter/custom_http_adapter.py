@@ -143,7 +143,7 @@ class CustomHTTPAdapter(BaseImageAdapter):
         for item in raw:
             try:
                 result.add(int(item))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
         return result or {200}
 

@@ -250,7 +250,7 @@ class SiliconFlowAdapter(BaseImageAdapter):
             return None
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return max(min_value, min(max_value, parsed))
 
@@ -262,6 +262,6 @@ class SiliconFlowAdapter(BaseImageAdapter):
             return None
         try:
             parsed = float(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return max(min_value, min(max_value, parsed))
