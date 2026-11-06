@@ -1,0 +1,16 @@
+# Forgejo collaboration bridge; credentials stay in the bot deployment.
+# Keep this binding identical on both default branches.
+[forgejo.bridge]
+enabled = true
+destination = "xero-team/astrbot_plugin_image_generation"
+github_repository = "Xero-Team/astrbot_plugin_image_generation"
+github_repository_id = 1333700349
+forgejo_repository_id = 15
+issues = false
+pull_requests = true
+comments = true
+sync_refs = true
+
+[forgejo.mirror]
+enabled = false
+destination = "xero-team/astrbot_plugin_image_generation"
